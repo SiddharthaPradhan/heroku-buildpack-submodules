@@ -1,45 +1,16 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
 
-export BUILD_DIR=$1
-bp_dir=$(cd $(dirname $0); cd ..; pwd)
+BUILD_DIR=$1
 
 if [ ! -f "$BUILD_DIR/.gitmodules" ]; then
-  echo "-----> No .gitmodules file found. Skipping."
+  echo "-----> No .gitmodules found"
   exit 0
 fi
 
-# As of Heroku-22, there is no system Ruby installation in the stack image, so if the
-# app doesn't already have the Ruby buildpack set before this one, we have to download
-# our own copy of Ruby to use to run `install_git_submodules.rb`. This Ruby installation
-# will only be available during the compile of this buildpack, and not by subsequent
-# buildpacks (so will not interfere with the real Ruby buildpack, if that's run later).
-if ! command -v ruby &> /dev/null; then
-  echo "-----> Ruby installation not found, temporarily installing Ruby for use by this buildpack"
-  ruby_version="4.0.5"
-  ruby_url="https://cache.ruby-lang.org/pub/ruby/4.0/ruby-${ruby_version}.tar.gz"
-  vendored_ruby_dir="${bp_dir}/vendor/ruby"
-  mkdir -p "${vendored_ruby_dir}"
+cd "$BUILD_DIR"
 
-  if ! curl --silent --show-error --fail --retry 3 --retry-connrefused --connect-timeout 5 "${ruby_url}" | tar -zxC "${vendored_ruby_dir}"; then
-    echo "     ! Failed to download Ruby from '${ruby_url}'" >&2
-    exit 1
-  fi
-  cd "${vendored_ruby_dir}/ruby-${ruby_version}"
-  ./configure --prefix="${vendored_ruby_dir}"
-  make
-  make install
-  cd -
-  export PATH="${vendored_ruby_dir}/bin:${PATH}"
+echo "-----> Initializing submodules"
 
-  echo "-----> Installed Ruby ${ruby_version}"
-fi
-
-export GEM_HOME=$bp_dir/vendor/gems
-export GEM_PATH=$bp_dir/vendor/gems
-
-echo "-----> Installing parseconfig gem"
-gem install 'parseconfig'
-
-ruby $bp_dir/bin/install_git_submodules.rb
+git submodule sync --recursive
+git submodule update --init --recursive
